@@ -22,7 +22,7 @@ namespace Shadowsocks.Controller
         private readonly HttpClient httpClient;
 
         // https://developer.github.com/v3/repos/releases/
-        private const string UpdateURL = "https://api.github.com/repos/shadowsocks/shadowsocks-windows/releases";
+        private const string UpdateURL = "https://api.github.com/repos/BFDZ/shadowsocks-windows/releases";
 
         private Configuration _config;
         private Window versionUpdatePromptWindow;
@@ -33,7 +33,7 @@ namespace Shadowsocks.Controller
 
         public event EventHandler CheckUpdateCompleted;
 
-        public const string Version = "5.1.0.0";
+        public const string Version = "5.1.1";
         private readonly Version _version;
 
         public UpdateChecker()

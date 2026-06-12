@@ -53,7 +53,10 @@ namespace Shadowsocks.Util
         public static string GenerateBase64Key(int length)
         {
             byte[] key = new byte[length];
-            RandomNumberGenerator.Fill(key);
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(key);
+            }
             return Convert.ToBase64String(key);
         }
 

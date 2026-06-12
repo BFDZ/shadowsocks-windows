@@ -1,4 +1,4 @@
-<img src="shadowsocks-csharp/Resources/ssw128.png" alt="[logo]" width="48"/> Shadowsocks for Windows
+<img src="shadowsocks-csharp/Resources/ssw128.png" alt="[logo]" width="48"/> Shadowsocks-rust for Windows
 =======================
 
 [![Build Status]][Appveyor]
@@ -14,6 +14,7 @@
 5. Supports server auto switching
 6. Supports UDP relay (see Usage)
 7. Supports plugins
+8. Supports SIP022 AEAD-2022 Ciphers
 
 ## Downloads
 
@@ -160,10 +161,10 @@ Sysproxy ()            https://github.com/Noisyfox/sysproxy
 
 [Appveyor]:     https://ci.appveyor.com/project/celeron533/shadowsocks-windows
 [Build Status]: https://ci.appveyor.com/api/projects/status/tfw57q6eecippsl5/branch/master?svg=true
-[release page]: https://github.com/shadowsocks/shadowsocks-csharp/releases
+[release page]: https://github.com/BFDZ/shadowsocks-windows/releases
 [GeoSite]:      https://github.com/v2fly/domain-list-community
-[Servers]:      https://github.com/shadowsocks/shadowsocks/wiki/Ports-and-Clients#linux--server-side
-[中文说明]:     https://github.com/shadowsocks/shadowsocks-windows/wiki/Shadowsocks-Windows-%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E
+[Servers]:      https://github.com/BFDZ/Shadowsocks-Rust
+[中文说明]:     https://github.com/BFDZ/shadowsocks-windows/wiki/%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E
 [Visual C++ 2015 Redistributable]:     https://www.microsoft.com/en-us/download/details.aspx?id=53840
 [GPLv3]:        https://github.com/shadowsocks/shadowsocks-windows/blob/master/LICENSE.txt
 [Working with non SIP003 standard Plugin]: https://github.com/shadowsocks/shadowsocks-windows/wiki/Working-with-non-SIP003-standard-Plugin

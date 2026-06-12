@@ -78,7 +78,7 @@ namespace Shadowsocks.Model
             firstRun = true;
             localPort = 1080;
             portableMode = true;
-            coreType = CoreType.BuiltIn;
+            coreType = CoreType.ShadowsocksRust;
             showPluginOutput = false;
             pacUrl = "";
             useOnlinePac = false;

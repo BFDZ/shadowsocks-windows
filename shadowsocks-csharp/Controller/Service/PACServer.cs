@@ -34,18 +34,21 @@ namespace Shadowsocks.Controller
 
         private Configuration _config;
         private PACDaemon _pacDaemon;
+        private int _proxyPort;
 
         public PACServer(PACDaemon pacDaemon)
         {
             _pacDaemon = pacDaemon;
         }
 
-        public void UpdatePACURL(Configuration config)
+        public void UpdatePACURL(Configuration config, int? pacPort = null, int? proxyPort = null)
         {
             _config = config;
+            _proxyPort = proxyPort ?? config.localPort;
+            int port = pacPort ?? config.localPort;
             string usedSecret = _config.secureLocalPac ? $"&secret={PacSecret}" : "";
             string contentHash = GetHash(_pacDaemon.GetPACContent());
-            PacUrl = $"http://{config.LocalHost}:{config.localPort}/{RESOURCE_NAME}?hash={contentHash}{usedSecret}";
+            PacUrl = $"http://{config.LocalHost}:{port}/{RESOURCE_NAME}?hash={contentHash}{usedSecret}";
             logger.Debug("Set PAC URL:" + PacUrl);
         }
 
@@ -199,8 +202,8 @@ Connection: Close
         private string GetPACAddress(IPEndPoint localEndPoint, bool useSocks)
         {
             return localEndPoint.AddressFamily == AddressFamily.InterNetworkV6
-                ? $"{(useSocks ? "SOCKS5" : "PROXY")} [{localEndPoint.Address}]:{_config.localPort};"
-                : $"{(useSocks ? "SOCKS5" : "PROXY")} {localEndPoint.Address}:{_config.localPort};";
+                ? $"{(useSocks ? "SOCKS5" : "PROXY")} [{localEndPoint.Address}]:{_proxyPort};"
+                : $"{(useSocks ? "SOCKS5" : "PROXY")} {localEndPoint.Address}:{_proxyPort};";
         }
     }
 }

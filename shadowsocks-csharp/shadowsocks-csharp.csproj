@@ -277,10 +277,13 @@
     <Compile Include="Model\LogViewerConfig.cs" />
     <Compile Include="Model\Server.cs" />
     <Compile Include="Model\Configuration.cs" />
+    <Compile Include="Model\RustLocalConfig.cs" />
     <Compile Include="Controller\Strategy\BalancingStrategy.cs" />
     <Compile Include="Controller\Strategy\StrategyManager.cs" />
     <Compile Include="Controller\Strategy\IStrategy.cs" />
     <Compile Include="Controller\Service\Sip003Plugin.cs" />
+    <Compile Include="Controller\Service\RustConfigWriter.cs" />
+    <Compile Include="Controller\Service\RustCoreRunner.cs" />
     <Compile Include="Proxy\Socks5Proxy.cs" />
     <Compile Include="Settings.cs" />
     <Compile Include="Controller\System\Hotkeys\Hotkeys.cs" />
@@ -291,6 +294,7 @@
     <Compile Include="Util\Sockets\WrappedSocket.cs" />
     <Compile Include="Util\SystemProxy\ProxyException.cs" />
     <Compile Include="Util\SystemProxy\Sysproxy.cs" />
+    <Compile Include="Util\Aead2022Helper.cs" />
     <Compile Include="Util\Util.cs" />
     <Compile Include="Util\ViewUtils.cs" />
     <Compile Include="ViewModels\ForwardProxyViewModel.cs" />

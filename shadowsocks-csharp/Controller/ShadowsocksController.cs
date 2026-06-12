@@ -38,6 +38,7 @@ namespace Shadowsocks.Controller
         private Configuration _config;
         private StrategyManager _strategyManager;
         private PrivoxyRunner privoxyRunner;
+        private RustCoreRunner _rustCoreRunner;
         private readonly ConcurrentDictionary<Server, Sip003Plugin> _pluginsByServer;
 
         private long _inboundCounter = 0;
@@ -157,6 +158,10 @@ namespace Shadowsocks.Controller
             {
                 privoxyRunner.Stop();
             }
+            if (_rustCoreRunner != null)
+            {
+                _rustCoreRunner.Stop();
+            }
             if (_config.enabled)
             {
                 SystemProxy.Update(_config, true, null);
@@ -194,7 +199,16 @@ namespace Shadowsocks.Controller
             _pacDaemon.PACFileChanged += PacDaemon_PACFileChanged;
             _pacDaemon.UserRuleFileChanged += PacDaemon_UserRuleFileChanged;
             _pacServer = _pacServer ?? new PACServer(_pacDaemon);
-            _pacServer.UpdatePACURL(_config); // So PACServer works when system proxy disabled.
+            if (_config.coreType == CoreType.ShadowsocksRust)
+            {
+                int pacPort = _config.localPort + 2;
+                int httpPort = _config.localPort + 1;
+                _pacServer.UpdatePACURL(_config, pacPort, httpPort);
+            }
+            else
+            {
+                _pacServer.UpdatePACURL(_config);
+            }
 
             GeositeUpdater.ResetEvent();
             GeositeUpdater.UpdateCompleted += PacServer_PACUpdateCompleted;
@@ -208,29 +222,26 @@ namespace Shadowsocks.Controller
             // though UseShellExecute is set to true now
             // http://stackoverflow.com/questions/10235093/socket-doesnt-close-after-application-exits-if-a-launched-process-is-open
             privoxyRunner.Stop();
+
+            if (_rustCoreRunner != null)
+            {
+                _rustCoreRunner.Stop();
+                _rustCoreRunner = null;
+            }
+
             try
             {
                 var strategy = GetCurrentStrategy();
                 strategy?.ReloadServers();
 
-                StartPlugin();
-                privoxyRunner.Start(_config);
-
-                TCPRelay tcpRelay = new TCPRelay(this, _config);
-                tcpRelay.OnInbound += UpdateInboundCounter;
-                tcpRelay.OnOutbound += UpdateOutboundCounter;
-                tcpRelay.OnFailed += (o, e) => GetCurrentStrategy()?.SetFailure(e.server);
-
-                UDPRelay udpRelay = new UDPRelay(this);
-                List<Listener.IService> services = new List<Listener.IService>
+                if (_config.coreType == CoreType.ShadowsocksRust)
                 {
-                    tcpRelay,
-                    udpRelay,
-                    _pacServer,
-                    new PortForwarder(privoxyRunner.RunningPort)
-                };
-                _listener = new Listener(services);
-                _listener.Start(_config);
+                    StartRustCore();
+                }
+                else
+                {
+                    StartBuiltInCore();
+                }
             }
             catch (Exception e)
             {
@@ -305,6 +316,76 @@ namespace Shadowsocks.Controller
             SaveConfig(_config);
 
             ShareOverLANStatusChanged?.Invoke(this, new EventArgs());
+        }
+
+        #endregion
+
+        #region Core Management
+
+        private void StartBuiltInCore()
+        {
+            StartPlugin();
+            privoxyRunner.Start(_config);
+
+            TCPRelay tcpRelay = new TCPRelay(this, _config);
+            tcpRelay.OnInbound += UpdateInboundCounter;
+            tcpRelay.OnOutbound += UpdateOutboundCounter;
+            tcpRelay.OnFailed += (o, e) => GetCurrentStrategy()?.SetFailure(e.server);
+
+            UDPRelay udpRelay = new UDPRelay(this);
+            List<Listener.IService> services = new List<Listener.IService>
+            {
+                tcpRelay,
+                udpRelay,
+                _pacServer,
+                new PortForwarder(privoxyRunner.RunningPort)
+            };
+            _listener = new Listener(services);
+            _listener.Start(_config);
+        }
+
+        private void StartRustCore()
+        {
+            var server = _config.GetCurrentServer();
+            string corePath = RustConfigWriter.GetCorePath();
+            string configPath = RustConfigWriter.GetConfigPath();
+
+            string localAddress = _config.shareOverLan ? "0.0.0.0" : "127.0.0.1";
+            if (_config.isIPv6Enabled)
+                localAddress = _config.shareOverLan ? "[::]" : "[::1]";
+
+            int socksPort = _config.localPort;
+            int httpPort = socksPort + 1;
+
+            RustConfigWriter.WriteConfig(server, configPath, localAddress, socksPort, httpPort);
+
+            _rustCoreRunner = new RustCoreRunner(corePath, configPath);
+            _rustCoreRunner.LogReceived += (s, logLine) =>
+            {
+                logger.Info("[rust-core] " + logLine);
+            };
+            _rustCoreRunner.ProcessExited += (s, e) =>
+            {
+                logger.Warn("sslocal process exited unexpectedly.");
+            };
+            _rustCoreRunner.Start();
+
+            int pacPort = socksPort + 2;
+
+            List<Listener.IService> services = new List<Listener.IService>
+            {
+                _pacServer
+            };
+            _listener = new Listener(services);
+            _listener.Start(_config, pacPort);
+
+            logger.Info($"PAC server listening on port {pacPort}");
+        }
+
+        public void SwitchCoreType(CoreType coreType)
+        {
+            _config.coreType = coreType;
+            SaveConfig(_config);
         }
 
         #endregion

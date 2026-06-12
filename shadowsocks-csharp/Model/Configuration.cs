@@ -10,6 +10,12 @@ using Shadowsocks.Controller;
 
 namespace Shadowsocks.Model
 {
+    public enum CoreType
+    {
+        BuiltIn,
+        ShadowsocksRust
+    }
+
     [Serializable]
     public class Configuration
     {
@@ -31,6 +37,7 @@ namespace Shadowsocks.Model
         public bool firstRun;
         public int localPort;
         public bool portableMode;
+        public CoreType coreType;
         public bool showPluginOutput;
         public string pacUrl;
 
@@ -71,6 +78,7 @@ namespace Shadowsocks.Model
             firstRun = true;
             localPort = 1080;
             portableMode = true;
+            coreType = CoreType.BuiltIn;
             showPluginOutput = false;
             pacUrl = "";
             useOnlinePac = false;

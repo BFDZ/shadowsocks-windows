@@ -31,7 +31,10 @@ namespace Shadowsocks.Controller
                 {
                     if (global)
                     {
-                        Sysproxy.SetIEProxy(true, true, "localhost:" + config.localPort.ToString(), null);
+                        int httpPort = config.coreType == CoreType.ShadowsocksRust
+                            ? config.localPort + 1
+                            : config.localPort;
+                        Sysproxy.SetIEProxy(true, true, "localhost:" + httpPort.ToString(), null);
                     }
                     else
                     {

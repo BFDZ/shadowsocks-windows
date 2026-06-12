@@ -56,13 +56,15 @@ namespace Shadowsocks.Controller
             return ipProperties.GetActiveTcpListeners().Any(endPoint => endPoint.Port == port);
         }
 
-        public void Start(Configuration config)
+        public void Start(Configuration config, int? portOverride = null)
         {
             this._config = config;
             this._shareOverLAN = config.shareOverLan;
 
-            if (CheckIfPortInUse(_config.localPort))
-                throw new Exception(I18N.GetString("Port {0} already in use", _config.localPort));
+            int bindPort = portOverride ?? _config.localPort;
+
+            if (CheckIfPortInUse(bindPort))
+                throw new Exception(I18N.GetString("Port {0} already in use", bindPort));
 
             try
             {
@@ -73,8 +75,8 @@ namespace Shadowsocks.Controller
                 _udpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                 IPEndPoint localEndPoint = null;
                 localEndPoint = _shareOverLAN
-                    ? new IPEndPoint(config.isIPv6Enabled ? IPAddress.IPv6Any : IPAddress.Any, _config.localPort)
-                    : new IPEndPoint(config.isIPv6Enabled ? IPAddress.IPv6Loopback : IPAddress.Loopback, _config.localPort);
+                    ? new IPEndPoint(config.isIPv6Enabled ? IPAddress.IPv6Any : IPAddress.Any, bindPort)
+                    : new IPEndPoint(config.isIPv6Enabled ? IPAddress.IPv6Loopback : IPAddress.Loopback, bindPort);
 
                 // Bind the socket to the local endpoint and listen for incoming connections.
                 _tcpSocket.Bind(localEndPoint);

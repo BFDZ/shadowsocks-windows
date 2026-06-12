@@ -59,6 +59,7 @@ namespace Shadowsocks.View
         private MenuItem ShowPluginOutputToggleItem;
         private MenuItem WriteI18NFileItem;
         private MenuItem onlineConfigItem;
+        private MenuItem useRustCoreItem;
 
         private ConfigForm configForm;
         private LogForm logForm;
@@ -288,6 +289,7 @@ namespace Shadowsocks.View
                 this.AutoStartupItem = CreateMenuItem("Start on Boot", new EventHandler(this.AutoStartupItem_Click)),
                 this.ProtocolHandlerItem = CreateMenuItem("Associate ss:// Links", new EventHandler(this.ProtocolHandlerItem_Click)),
                 this.ShareOverLANItem = CreateMenuItem("Allow other Devices to connect", new EventHandler(this.ShareOverLANItem_Click)),
+                this.useRustCoreItem = CreateMenuItem("Use shadowsocks-rust Core", new EventHandler(this.UseRustCoreItem_Click)),
                 new MenuItem("-"),
                 this.hotKeyItem = CreateMenuItem("Edit Hotkeys...", new EventHandler(this.hotKeyItem_Click)),
                 CreateMenuGroup("Help", new MenuItem[] {
@@ -353,6 +355,7 @@ namespace Shadowsocks.View
             UpdateServersMenu();
             UpdateSystemProxyItemsEnabledStatus(config);
             ShareOverLANItem.Checked = config.shareOverLan;
+            useRustCoreItem.Checked = config.coreType == CoreType.ShadowsocksRust;
             VerboseLoggingToggleItem.Checked = config.isVerboseLogging;
             ShowPluginOutputToggleItem.Checked = config.showPluginOutput;
             AutoStartupItem.Checked = AutoStartup.Check();
@@ -564,6 +567,12 @@ namespace Shadowsocks.View
         {
             ShareOverLANItem.Checked = !ShareOverLANItem.Checked;
             controller.ToggleShareOverLAN(ShareOverLANItem.Checked);
+        }
+
+        private void UseRustCoreItem_Click(object sender, EventArgs e)
+        {
+            useRustCoreItem.Checked = !useRustCoreItem.Checked;
+            controller.SwitchCoreType(useRustCoreItem.Checked ? CoreType.ShadowsocksRust : CoreType.BuiltIn);
         }
 
         private void AutoStartupItem_Click(object sender, EventArgs e)

@@ -1,6 +1,7 @@
 using Shadowsocks.Controller;
 using Shadowsocks.Model;
 using Shadowsocks.Properties;
+using Shadowsocks.Util;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -34,6 +35,9 @@ namespace Shadowsocks.View
                 "aes-128-gcm",
                 "chacha20-ietf-poly1305",
                 "xchacha20-ietf-poly1305",
+                "2022-blake3-aes-128-gcm",
+                "2022-blake3-aes-256-gcm",
+                "2022-blake3-chacha20-poly1305",
             };
             public static EncryptionMethod[] AllMethods
             {
@@ -149,7 +153,15 @@ namespace Shadowsocks.View
                 if (server != null)
                 {
                     if (isSave || isCopy)
+                    {
                         Configuration.CheckServer(server);
+                        if (Aead2022Helper.IsAead2022Method(server.method) && !Aead2022Helper.ValidateAead2022Password(server.method, server.password))
+                        {
+                            int keyLen = Aead2022Helper.GetRequiredKeyLength(server.method);
+                            MessageBox.Show(I18N.GetString("AEAD 2022 method requires a Base64-encoded key of {0} bytes. You can generate one automatically.", keyLen), I18N.GetString("Shadowsocks"));
+                            return false;
+                        }
+                    }
 
                     _modifiedConfiguration.configs[_lastSelectedIndex] = server;
                 }

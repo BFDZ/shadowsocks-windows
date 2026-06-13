@@ -15,6 +15,7 @@
 6. Supports UDP relay (see Usage)
 7. Supports plugins
 8. Supports SIP022 AEAD-2022 Ciphers
+9. Follow the core project [shadowsocks-rust](https://github.com/shadowsocks/shadowsocks-rust)
 
 ## Downloads
 

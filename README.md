@@ -31,7 +31,7 @@ Download the latest release from [release page].
 3. Select `Enable System Proxy` menu to enable system proxy. Please disable other
 proxy addons in your browser, or set them to use system proxy
 4. You can also configure your browser proxy manually if you don't want to enable
-system proxy. Set Socks5 or HTTP proxy to 127.0.0.1:1080. You can change this
+system proxy. Set Socks5 to 127.0.0.1:1080 or HTTP proxy to 127.0.0.1:1081. You can change this
 port in `Servers -> Edit Servers`
 
 ## PAC

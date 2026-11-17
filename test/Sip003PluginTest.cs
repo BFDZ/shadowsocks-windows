@@ -188,33 +188,51 @@ namespace Shadowsocks.Test
 
             if (string.IsNullOrWhiteSpace(pluginName)) return;
 
+            // make the test hermetic: kill any stale plugin process left by an earlier run
+            foreach (var stale in Process.GetProcessesByName(pluginName))
+            {
+                try
+                {
+                    stale.Kill();
+                    stale.WaitForExit(2000);
+                }
+                catch (Exception)
+                {
+                    // the process may have exited on its own, nothing to do
+                }
+            }
+
             plugin.StartIfNeeded();
 
-            Process[] processes = Process.GetProcessesByName(pluginName);
-            Assert.AreEqual(processes.Length, 1);
-            Process p = processes[0];
-
-
-            var penv = ProcessEnvironment.ReadEnvironmentVariables(p);
-            var pcmd = ProcessEnvironment.GetCommandLine(p).Trim();
-            pcmd = pcmd.IndexOf(' ') >= 0 ? pcmd.Substring(pcmd.IndexOf(' ') + 1) : "";
-            
-            Assert.AreEqual(penv["SS_REMOTE_HOST"], serverAddress);
-            Assert.AreEqual(penv["SS_REMOTE_PORT"], serverPort.ToString());
-            Assert.AreEqual(penv["SS_LOCAL_HOST"], IPAddress.Loopback.ToString());
-            
-            int _ignored;
-            Assert.IsTrue(int.TryParse(penv["SS_LOCAL_PORT"], out _ignored));
-            
-            Assert.AreEqual(penv["SS_PLUGIN_OPTIONS"], pluginOpts);
-            Assert.AreEqual(pcmd, pluginArgs);
-
-
-            plugin.Dispose();
-            for (int i = 0; i < 50; i++)
+            try
             {
-                if (Process.GetProcessesByName(pluginName).Length == 0) return;
-                Thread.Sleep(50);
+                Process[] processes = Process.GetProcessesByName(pluginName);
+                Assert.AreEqual(1, processes.Length);
+                Process p = processes[0];
+
+
+                var penv = ProcessEnvironment.ReadEnvironmentVariables(p);
+                var pcmd = ProcessEnvironment.GetCommandLine(p).Trim();
+                pcmd = pcmd.IndexOf(' ') >= 0 ? pcmd.Substring(pcmd.IndexOf(' ') + 1) : "";
+
+                Assert.AreEqual(penv["SS_REMOTE_HOST"], serverAddress);
+                Assert.AreEqual(penv["SS_REMOTE_PORT"], serverPort.ToString());
+                Assert.AreEqual(penv["SS_LOCAL_HOST"], IPAddress.Loopback.ToString());
+
+                int _ignored;
+                Assert.IsTrue(int.TryParse(penv["SS_LOCAL_PORT"], out _ignored));
+
+                Assert.AreEqual(penv["SS_PLUGIN_OPTIONS"], pluginOpts);
+                Assert.AreEqual(pcmd, pluginArgs);
+            }
+            finally
+            {
+                plugin.Dispose();
+                for (int i = 0; i < 50; i++)
+                {
+                    if (Process.GetProcessesByName(pluginName).Length == 0) break;
+                    Thread.Sleep(50);
+                }
             }
         }
     }

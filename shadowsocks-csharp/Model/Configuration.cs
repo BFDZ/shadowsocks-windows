@@ -76,7 +76,7 @@ namespace Shadowsocks.Model
             enabled = false;
             shareOverLan = false;
             firstRun = true;
-            localPort = 1080;
+            localPort = 10808;
             portableMode = true;
             coreType = CoreType.ShadowsocksRust;
             showPluginOutput = false;

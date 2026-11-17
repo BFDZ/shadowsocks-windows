@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -19,6 +20,13 @@ namespace Shadowsocks.Controller.Service
         private static Job _rustJob;
         private readonly string _corePath;
         private readonly string _configPath;
+        private readonly string _statAddr;
+
+        /// <summary>
+        /// Cache of the result of <see cref="IsStatAddrSupported"/>, keyed by core path
+        /// </summary>
+        private static readonly ConcurrentDictionary<string, bool> StatAddrSupportCache =
+            new ConcurrentDictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
         public event EventHandler<string> LogReceived;
         public event EventHandler ProcessExited;
@@ -31,9 +39,19 @@ namespace Shadowsocks.Controller.Service
         }
 
         public RustCoreRunner(string corePath, string configPath)
+            : this(corePath, configPath, null)
+        {
+        }
+
+        /// <param name="statAddr">
+        /// TCP address (IP:PORT) of the local flow statistic listener, passed to the core with
+        /// <c>--stat-addr</c>. Pass null to disable the report.
+        /// </param>
+        public RustCoreRunner(string corePath, string configPath, string statAddr)
         {
             _corePath = corePath;
             _configPath = configPath;
+            _statAddr = statAddr;
         }
 
         public void Start()
@@ -50,7 +68,9 @@ namespace Shadowsocks.Controller.Service
             var startInfo = new ProcessStartInfo
             {
                 FileName = _corePath,
-                Arguments = $"-c \"{_configPath}\"",
+                Arguments = string.IsNullOrEmpty(_statAddr)
+                    ? $"-c \"{_configPath}\""
+                    : $"-c \"{_configPath}\" --stat-addr {_statAddr}",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -102,7 +122,8 @@ namespace Shadowsocks.Controller.Service
                 logger.LogUsefulException(ex);
             }
 
-            logger.Info($"sslocal started - PID: {_process.Id}, config: {_configPath}");
+            logger.Info($"sslocal started - PID: {_process.Id}, config: {_configPath}"
+                + (string.IsNullOrEmpty(_statAddr) ? "" : $", stat-addr: {_statAddr}"));
         }
 
         public void Stop()
@@ -163,6 +184,88 @@ namespace Shadowsocks.Controller.Service
             catch
             {
                 return 0;
+            }
+        }
+
+        /// <summary>
+        /// Check whether the core binary was built with the <c>local-flow-stat</c> feature
+        /// (i.e. it understands <c>--stat-addr</c>).
+        ///
+        /// The Rust core only reports local flow statistics when built with that feature,
+        /// and it is disabled in the upstream default build, so the argument must not be
+        /// passed blindly - an unknown argument makes clap terminate the process.
+        /// </summary>
+        public static bool IsStatAddrSupported(string corePath)
+        {
+            if (string.IsNullOrEmpty(corePath))
+                return false;
+
+            try
+            {
+                if (!File.Exists(corePath))
+                    return false;
+
+                // include the last write time, so replacing the core binary invalidates the cache
+                string key = corePath + "|" + File.GetLastWriteTimeUtc(corePath).Ticks;
+                return StatAddrSupportCache.GetOrAdd(key, _ => ProbeStatAddrSupport(corePath));
+            }
+            catch (Exception ex)
+            {
+                logger.LogUsefulException(ex);
+                return false;
+            }
+        }
+
+        private static bool ProbeStatAddrSupport(string corePath)
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = corePath,
+                    Arguments = "--help",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                    StandardOutputEncoding = Encoding.UTF8,
+                    StandardErrorEncoding = Encoding.UTF8,
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var output = new StringBuilder();
+                    process.OutputDataReceived += (s, e) =>
+                    {
+                        if (e.Data != null) output.AppendLine(e.Data);
+                    };
+                    process.ErrorDataReceived += (s, e) =>
+                    {
+                        if (e.Data != null) output.AppendLine(e.Data);
+                    };
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    if (!process.WaitForExit(5000))
+                    {
+                        try { process.Kill(); } catch { /* ignore */ }
+                        logger.Warn("probing sslocal --help timed out, flow statistic disabled");
+                        return false;
+                    }
+                    // ensure the asynchronous output callbacks are flushed
+                    process.WaitForExit();
+
+                    bool supported = output.ToString().Contains("--stat-addr");
+                    if (!supported)
+                        logger.Warn("sslocal was built without the `local-flow-stat` feature, "
+                            + "GUI traffic statistic is not available");
+                    return supported;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogUsefulException(ex);
+                return false;
             }
         }
     }

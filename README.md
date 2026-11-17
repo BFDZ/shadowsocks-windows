@@ -32,8 +32,30 @@ Download the latest release from [release page].
 3. Select `Enable System Proxy` menu to enable system proxy. Please disable other
 proxy addons in your browser, or set them to use system proxy
 4. You can also configure your browser proxy manually if you don't want to enable
-system proxy. Set Socks5 to 127.0.0.1:1080 or HTTP proxy to 127.0.0.1:1081. You can change this
+system proxy. Set Socks5 to 127.0.0.1:10808 or HTTP proxy to 127.0.0.1:10809. You can change this
 port in `Servers -> Edit Servers`
+
+## Traffic statistics
+
+Since the local proxy is the rust core (`sslocal.exe`), the GUI can't count bytes itself. It
+listens on a loopback TCP port and tells the core where to report to:
+
+```
+sslocal.exe -c <config> --stat-addr 127.0.0.1:<ephemeral port>
+```
+
+Every 500 ms the core opens a TCP connection to that port and writes 16 bytes: two little
+endian `u64` cumulative counters, `tx` (upload) followed by `rx` (download). The GUI maps
+them to its outbound / inbound counters, so the tray icon and the traffic chart in the log
+window work exactly like they do with the built-in core.
+
+Requirements:
+
+- `--stat-addr` only exists when the core is built with the `local-flow-stat` feature. It is
+  included in the default `full` feature set, so build with `cargo build --release` (default
+  features) or add `local-flow-stat` explicitly.
+- If the bundled `core/sslocal.exe` doesn't support the argument, the GUI detects it by
+  probing `sslocal.exe --help` and simply runs without traffic statistics.
 
 ## PAC
 

@@ -284,6 +284,7 @@
     <Compile Include="Controller\Service\Sip003Plugin.cs" />
     <Compile Include="Controller\Service\RustConfigWriter.cs" />
     <Compile Include="Controller\Service\RustCoreRunner.cs" />
+    <Compile Include="Controller\Service\LocalStatListener.cs" />
     <Compile Include="Proxy\Socks5Proxy.cs" />
     <Compile Include="Settings.cs" />
     <Compile Include="Controller\System\Hotkeys\Hotkeys.cs" />

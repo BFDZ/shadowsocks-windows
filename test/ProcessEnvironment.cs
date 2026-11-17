@@ -148,7 +148,10 @@ namespace Shadowsocks.Test
         {
             var penv = _GetPenv(hProcess);
 
-            const int maxEnvSize = 32767;
+            // Windows limits the environment block to 32767 UTF-16 characters, i.e. 65534 bytes.
+            // The cap used to be 32767 *bytes*, which silently truncated blocks bigger than ~16K
+            // characters and made the terminator scan run past the end of the buffer.
+            const int maxEnvSize = 32767 * sizeof(char);
             byte[] envData;
 
             if (penv.CanBeRepresentedByNativePointer)
@@ -207,56 +210,28 @@ namespace Shadowsocks.Test
         {
             var result = new StringDictionary();
 
-            int len = env.Length;
-            if (len < 4)
+            if (env == null || env.Length < 4)
                 return result;
 
-            int n = len - 3;
-            for (int i = 0; i < n; ++i)
+            // The block is a sequence of "KEY=VALUE" strings, each terminated by '\0',
+            // and the whole block is terminated by an extra '\0'.
+            string block = Encoding.Unicode.GetString(env);
+            int terminator = block.IndexOf("\0\0", StringComparison.Ordinal);
+            if (terminator >= 0)
+                block = block.Substring(0, terminator);
+
+            foreach (string entry in block.Split('\0'))
             {
-                byte c1 = env[i];
-                byte c2 = env[i + 1];
-                byte c3 = env[i + 2];
-                byte c4 = env[i + 3];
+                if (entry.Length == 0)
+                    continue;
 
-                if (c1 == 0 && c2 == 0 && c3 == 0 && c4 == 0)
-                {
-                    len = i + 3;
-                    break;
-                }
-            }
+                int separator = entry.IndexOf('=');
+                // A leading '=' means the entry is a hidden per-drive variable ("=C:=C:\..."),
+                // which has no usable name; skip it like the original implementation did.
+                if (separator <= 0)
+                    continue;
 
-            char[] environmentCharArray = Encoding.Unicode.GetChars(env, 0, len);
-
-            for (int i = 0; i < environmentCharArray.Length; i++)
-            {
-                int startIndex = i;
-                while ((environmentCharArray[i] != '=') && (environmentCharArray[i] != '\0'))
-                {
-                    i++;
-                }
-                if (environmentCharArray[i] != '\0')
-                {
-                    if ((i - startIndex) == 0)
-                    {
-                        while (environmentCharArray[i] != '\0')
-                        {
-                            i++;
-                        }
-                    }
-                    else
-                    {
-                        string str = new string(environmentCharArray, startIndex, i - startIndex);
-                        i++;
-                        int num3 = i;
-                        while (environmentCharArray[i] != '\0')
-                        {
-                            i++;
-                        }
-                        string str2 = new string(environmentCharArray, num3, i - num3);
-                        result[str] = str2;
-                    }
-                }
+                result[entry.Substring(0, separator)] = entry.Substring(separator + 1);
             }
 
             return result;

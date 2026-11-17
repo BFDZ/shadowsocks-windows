@@ -33,7 +33,7 @@ namespace Shadowsocks.Controller
 
         public event EventHandler CheckUpdateCompleted;
 
-        public const string Version = "5.1.1";
+        public const string Version = "5.2.0";
         private readonly Version _version;
 
         public UpdateChecker()

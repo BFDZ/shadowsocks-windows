@@ -1,3 +1,13 @@
+5.2.0.0 2026-11-17
+- Change default local port from 1080 to 10808 (SOCKS5 10808, HTTP 10809, PAC 10810)
+  to avoid conflicts with other local proxies
+- Rust core: enable the `local-flow-stat` feature and report kernel traffic counters
+  back to the GUI, restoring the tray icon arrows and the traffic graph in the log window
+- Fix: a SIP003 plugin could not be started when the environment block contained the same
+  variable name twice with different letter cases (e.g. `HTTPS_PROXY` and `https_proxy`,
+  as produced by bash/msys based launchers)
+- Other minor bug fixes and improvements
+
 4.4.1.0 2022-02-08
 - Add plain/none ciphers
 

@@ -1,9 +1,12 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using NLog;
 using Shadowsocks.Model;
 using Shadowsocks.Util.ProcessManagement;
 
@@ -12,6 +15,8 @@ namespace Shadowsocks.Controller.Service
     // https://github.com/shadowsocks/shadowsocks-org/wiki/Plugin
     public sealed class Sip003Plugin : IDisposable
     {
+        private static readonly Logger logger = LogManager.GetCurrentClassLogger();
+
         public IPEndPoint LocalEndPoint { get; private set; }
         public int ProcessId => _started ? _pluginProcess.Id : 0;
 
@@ -56,25 +61,98 @@ namespace Shadowsocks.Controller.Service
 
             _pluginProcess = new Process
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = plugin,
-                    Arguments = pluginArgs,
-                    UseShellExecute = false,
-                    CreateNoWindow = !showPluginOutput,
-                    ErrorDialog = false,
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                    WorkingDirectory = Program.WorkingDirectory ?? Environment.CurrentDirectory,
-                    Environment =
-                    {
-                        ["SS_REMOTE_HOST"] = serverAddress,
-                        ["SS_REMOTE_PORT"] = serverPort.ToString(),
-                        ["SS_PLUGIN_OPTIONS"] = pluginOpts
-                    }
-                }
+                StartInfo = CreateStartInfo(plugin, pluginArgs, showPluginOutput,
+                    Program.WorkingDirectory ?? Environment.CurrentDirectory,
+                    serverAddress, serverPort, pluginOpts)
             };
 
             _pluginJob = new Job();
+        }
+
+        /// <summary>
+        /// Builds the start info of the plugin process, with the SIP003 environment set.
+        /// </summary>
+        private static ProcessStartInfo CreateStartInfo(string plugin, string pluginArgs, bool showPluginOutput,
+            string workingDirectory, string serverAddress, int serverPort, string pluginOpts)
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = plugin,
+                Arguments = pluginArgs,
+                UseShellExecute = false,
+                CreateNoWindow = !showPluginOutput,
+                ErrorDialog = false,
+                WindowStyle = ProcessWindowStyle.Hidden,
+                WorkingDirectory = workingDirectory
+            };
+
+            try
+            {
+                SetPluginEnvironment(startInfo, serverAddress, serverPort, pluginOpts);
+            }
+            catch (ArgumentException)
+            {
+                // ProcessStartInfo copies the environment block of the current process into a
+                // dictionary that compares names case-insensitively. When the block contains the
+                // same name twice with different letter cases ("HTTPS_PROXY" and "https_proxy" for
+                // example, which bash/msys based launchers do produce), that copy throws and the
+                // plugin can never be started. Remove the duplicates and try once more.
+                if (!TryRemoveDuplicateEnvironmentVariables())
+                    throw;
+
+                SetPluginEnvironment(startInfo, serverAddress, serverPort, pluginOpts);
+            }
+
+            return startInfo;
+        }
+
+        private static void SetPluginEnvironment(ProcessStartInfo startInfo, string serverAddress, int serverPort, string pluginOpts)
+        {
+            // Reading Environment here also inherits the environment of the current process,
+            // which is what the plugin process should see.
+            var environment = startInfo.Environment;
+            environment["SS_REMOTE_HOST"] = serverAddress;
+            environment["SS_REMOTE_PORT"] = serverPort.ToString();
+            environment["SS_PLUGIN_OPTIONS"] = pluginOpts;
+        }
+
+        /// <summary>
+        /// Removes environment variables whose names only differ in letter case.
+        /// </summary>
+        /// <returns><c>true</c> if the environment is free of duplicates afterwards.</returns>
+        private static bool TryRemoveDuplicateEnvironmentVariables()
+        {
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var duplicates = new List<string>();
+
+            foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
+            {
+                var name = (string)entry.Key;
+                if (!names.Add(name))
+                {
+                    duplicates.Add(name);
+                }
+            }
+
+            foreach (var name in duplicates)
+            {
+                // a name is matched case-insensitively, so this drops every entry with that name
+                Environment.SetEnvironmentVariable(name, null);
+                logger.Warn($"Removed duplicated environment variable \"{name}\", " +
+                            "it prevented the SIP003 plugin from being started");
+            }
+
+            // verify: a partial cleanup would just make the retry fail again
+            names.Clear();
+            foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
+            {
+                if (!names.Add((string)entry.Key))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         public bool StartIfNeeded()

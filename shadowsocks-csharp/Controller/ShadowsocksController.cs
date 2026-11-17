@@ -39,6 +39,7 @@ namespace Shadowsocks.Controller
         private StrategyManager _strategyManager;
         private PrivoxyRunner privoxyRunner;
         private RustCoreRunner _rustCoreRunner;
+        private LocalStatListener _statListener;
         private readonly ConcurrentDictionary<Server, Sip003Plugin> _pluginsByServer;
 
         private long _inboundCounter = 0;
@@ -162,6 +163,7 @@ namespace Shadowsocks.Controller
             {
                 _rustCoreRunner.Stop();
             }
+            StopLocalStatListener();
             if (_config.enabled)
             {
                 SystemProxy.Update(_config, true, null);
@@ -228,6 +230,7 @@ namespace Shadowsocks.Controller
                 _rustCoreRunner.Stop();
                 _rustCoreRunner = null;
             }
+            StopLocalStatListener();
 
             try
             {
@@ -359,7 +362,11 @@ namespace Shadowsocks.Controller
 
             RustConfigWriter.WriteConfig(server, configPath, localAddress, socksPort, httpPort);
 
-            _rustCoreRunner = new RustCoreRunner(corePath, configPath);
+            // Start the local flow statistic listener before launching the core, so the
+            // reported traffic can be received as soon as sslocal begins to work.
+            string statAddr = StartLocalStatListener(corePath);
+
+            _rustCoreRunner = new RustCoreRunner(corePath, configPath, statAddr);
             _rustCoreRunner.LogReceived += (s, logLine) =>
             {
                 logger.Info("[rust-core] " + logLine);
@@ -380,6 +387,60 @@ namespace Shadowsocks.Controller
             _listener.Start(_config, pacPort);
 
             logger.Info($"PAC server listening on port {pacPort}");
+        }
+
+        /// <summary>
+        /// Start the TCP listener which receives flow statistics from the rust core
+        /// </summary>
+        /// <returns>
+        /// the address to pass to sslocal with <c>--stat-addr</c>, or null if the core
+        /// doesn't support it
+        /// </returns>
+        private string StartLocalStatListener(string corePath)
+        {
+            StopLocalStatListener();
+
+            if (!RustCoreRunner.IsStatAddrSupported(corePath))
+            {
+                return null;
+            }
+
+            try
+            {
+                var listener = new LocalStatListener();
+                listener.FlowStatReceived += OnFlowStatReceived;
+                int port = listener.Start();
+                _statListener = listener;
+
+                logger.Info($"local flow statistic listener started on 127.0.0.1:{port}");
+                return $"127.0.0.1:{port}";
+            }
+            catch (Exception e)
+            {
+                logger.LogUsefulException(e);
+                return null;
+            }
+        }
+
+        private void StopLocalStatListener()
+        {
+            var listener = _statListener;
+            _statListener = null;
+            if (listener != null)
+            {
+                listener.FlowStatReceived -= OnFlowStatReceived;
+                listener.Dispose();
+            }
+        }
+
+        private void OnFlowStatReceived(object sender, FlowStatEventArgs e)
+        {
+            // sslocal reports cumulative counters every 500ms:
+            //   tx - bytes sent to the remote server (upload)
+            //   rx - bytes received from the remote server (download)
+            // which map to the outbound / inbound counters used by the built-in core.
+            Interlocked.Exchange(ref _outboundCounter, e.Tx);
+            Interlocked.Exchange(ref _inboundCounter, e.Rx);
         }
 
         public void SwitchCoreType(CoreType coreType)
@@ -725,8 +786,10 @@ namespace Shadowsocks.Controller
                     inboundCounter = InboundCounter,
                     outboundCounter = OutboundCounter
                 };
-                current.inboundIncreasement = current.inboundCounter - previous.inboundCounter;
-                current.outboundIncreasement = current.outboundCounter - previous.outboundCounter;
+                // Counters of the rust core may be reset when the core process restarts,
+                // clamp the increasement so the chart doesn't show a negative spike.
+                current.inboundIncreasement = Math.Max(0, current.inboundCounter - previous.inboundCounter);
+                current.outboundIncreasement = Math.Max(0, current.outboundCounter - previous.outboundCounter);
 
                 trafficPerSecondQueue.Enqueue(current);
                 if (trafficPerSecondQueue.Count > queueMaxSize)

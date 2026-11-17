@@ -9,8 +9,8 @@ namespace Shadowsocks.Controller.Service
     {
         private static readonly Logger logger = LogManager.GetCurrentClassLogger();
 
-        public const int DefaultSocksPort = 1080;
-        public const int DefaultHttpPort = 1081;
+        public const int DefaultSocksPort = 10808;
+        public const int DefaultHttpPort = 10809;
 
         public static string WriteConfig(Server server, string configPath, string localAddress, int socksPort, int httpPort)
         {
